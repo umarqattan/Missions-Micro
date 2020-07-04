@@ -2,14 +2,26 @@
 #include "Adafruit_DRV2605.h"
 
 
-void setupHaptics();
-void hapticsLoop();
-
 // MARK: - Haptics Driver variables
 Adafruit_DRV2605 drv;
-uint8_t effect = 1;
+uint8_t* effect;
 int hapticsSampleRate = 500;
+uint8_t lastSlot = 6;
+uint8_t lastEffect = 117;
 
+
+enum HapticsState { 
+  idle,
+  inProgress,
+  incomplete,
+  done 
+};
+
+HapticsState hapticsState = idle;
+
+// MARK: - Prototype functions
+void setupHaptics();
+HapticsState fireHapticsEffect(uint8_t* newEffect);
 
 void setupHaptics()
 {
@@ -22,20 +34,24 @@ void setupHaptics()
   drv.setMode(DRV2605_MODE_INTTRIG); 
 
 }
-
-void hapticsLoop()
+HapticsState fireHapticsEffect(uint8_t* newEffect)
 {
-  
-  // set the effect to play
-  drv.setWaveform(0, effect);  // play effect 
-  drv.setWaveform(1, 0);       // end waveform
 
-  // play the effect!
+  uint8_t dataLength = getLength(newEffect);
+  Serial.printf("Data Length: %d\n", dataLength);
+  if (dataLength <= 1 || dataLength > lastSlot) 
+  {
+    Serial.printf("Haptics Effect is empty with size %d", dataLength);
+    return incomplete;
+  }
+
+  drv.setWaveform(0, newEffect[0]);
+  drv.setWaveform(1, 0);
+
+  // play the new effect!
   drv.go();
 
-  // wait a bit
-  delay(hapticsSampleRate);
-
-  effect++;
-  if (effect > 117) effect = 1;
+  // reset effect
+  effect = {};
+  return done;
 }

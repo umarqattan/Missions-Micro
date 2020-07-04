@@ -1,5 +1,5 @@
 // MARK: - Defines
-#define IS_LEFT // IS_LEFT
+#define IS_RIGHT // IS_LEFT
 #define DEBUG_BLE_SENSORS
 
 // MARK: - MUX variables
