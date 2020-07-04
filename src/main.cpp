@@ -168,10 +168,25 @@ void setup()
 }
 
 void loop() {
-  mpu9250BLELoop();
-  sensorMuxLoop();
-  hapticsLoop();
-  delay(50);
+  if (deviceConnected)
+  {
+    mpu9250BLELoop();
+    sensorMuxLoop();
+    HapticsState state = fireHapticsEffect(effect);
+
+    if (state == done)
+    {
+      pHapticsCharacteristic->setValue("1");
+      pHapticsCharacteristic->notify();
+    } 
+    if (state == incomplete)
+    {
+      pHapticsCharacteristic->setValue("2");
+      pHapticsCharacteristic->notify();
+    }
+  }
+
+  delay(samplingRate);
 }
 
 

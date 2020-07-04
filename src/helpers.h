@@ -5,6 +5,7 @@
 
 void initByteArray(char *var, int length);
 void scanner();
+uint8_t getLength(uint8_t* byteArray);
 
 void initByteArray(char *var, int length)
 {
@@ -37,4 +38,12 @@ void scanner()
   Serial.print ("Found ");      
   Serial.print (count, DEC);        // numbers of devices
   Serial.println (" device(s).");
+}
+
+uint8_t getLength(uint8_t* byteArray)
+{
+  uint8_t i = 0;
+  while(byteArray && byteArray[i++] != '\0') {};
+
+  return i;
 }
