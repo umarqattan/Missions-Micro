@@ -2,9 +2,8 @@
 // MARK: - Includes
 #include "helpers.h"
 #include "sensor.h"
-#include "mpu.h"
-#include "haptics.h"
 #include "ble.h"
+#include <pthread.h>
 
 // MARK: - Defines
 
@@ -16,13 +15,19 @@
   #define DEVICE_NAME "LEFT1_v2"
 #endif
 
+TaskHandle_t sensorMuxTask;
+TaskHandle_t imuTask;
+TaskHandle_t hapticsTask;
+
 void setupSensorArrays() 
 {
-  initByteArray(muxTopByteArray, sizeof(uint16_t)*topSensorsCount);
-  initByteArray(muxBottomByteArray, sizeof(uint16_t)*bottomSensorsCount);
-  initByteArray(gyroByteArray, sizeof(float)*imuCount);
-  initByteArray(accByteArray, sizeof(float)*imuCount);
-  initByteArray(magByteArray, sizeof(float)*imuCount);
+    initByteArray(muxTopByteArray, topSensorsCount*sizeof(uint16_t));
+    initByteArray(muxBottomByteArray, bottomSensorsCount*sizeof(uint16_t));
+    initByteArray(yprByteArray, 3*sizeof(float));
+    initByteArray(magByteArray, 3*sizeof(short));
+    initByteArray(accByteArray, 3*sizeof(float));
+    initByteArray(gyroByteArray, 3*sizeof(float));
+    initByteArray(gestureConfigValues, 2*sizeof(char));
 }
 
 void setSensorsCharacteristic(Sensors side, char *values, int length)
@@ -43,150 +48,183 @@ void setSensorsCharacteristic(Sensors side, char *values, int length)
     }
 }
 
-void sensorMuxLoop()
+void sensorMuxLoopCode(void *pvParameters)
 {
-  uint16_t src1, src2;
-  for (int i = 0; i < 16; i++)
-  {
-    muxIntArray[i] = (uint16_t)readMux(i);
-  }
-
-  for (int i = 0; i < bottomSensorsCount; i++)
-  {
-    src1 = muxIntArray[i];
-    MEMCPY(&muxBottomByteArray[2*i], &src1, sizeof(src1));
-  }
-
-  for (int i = 0; i < topSensorsCount; i++) 
-  {
-    src2 = muxIntArray[i+bottomSensorsCount];
-    MEMCPY(&muxTopByteArray[2*i], &src2, sizeof(src2));
-  }
-
-  setSensorsCharacteristic(top, muxTopByteArray, topSensorsCount*sizeof(src1));
-  setSensorsCharacteristic(bottom, muxBottomByteArray, bottomSensorsCount*sizeof(src2));
-  
-  Serial.print("Bottom\n");
-  Serial.print("[ ");
-  for (int i = 0; i < bottomSensorsCount; i++)
-  {
-    MEMCPY(&src1, &muxBottomByteArray[2*i], sizeof(src1));
-    Serial.printf("%d ", src1);
-  }
-  Serial.print("]\n");
-
-  Serial.print("Top\n");
-  Serial.print("[ ");
-  for (int i = 0; i < topSensorsCount; i++)
-  {
-    MEMCPY(&src2, &muxTopByteArray[2*i], sizeof(src2));
-    Serial.printf("%d ", src2);
-  }
-  Serial.print("]\n");
-
-}
-
-void setIMUCharacteristic(IMUDevice device) 
-{
-    switch(device)
+    while(1)
     {
-        float x, y, z;
-        case acc:
-            x = IMU.getAccelX_mss();
-            y = IMU.getAccelY_mss();
-            z = IMU.getAccelZ_mss();
-            MEMCPY(&accByteArray[0], &x, sizeof(x));
-            MEMCPY(&accByteArray[4], &y, sizeof(y));
-            MEMCPY(&accByteArray[8], &z, sizeof(z));
-            pAccelerometerCharacteristic->setValue((uint8_t *)accByteArray, imuCount*sizeof(x));
-            pAccelerometerCharacteristic->notify();
-            break;
-        case gyro:
-            x = IMU.getGyroX_rads();
-            y = IMU.getGyroY_rads();
-            z = IMU.getGyroZ_rads();
-            MEMCPY(&gyroByteArray[0], &x, sizeof(x));
-            MEMCPY(&gyroByteArray[4], &y, sizeof(y));
-            MEMCPY(&gyroByteArray[8], &z, sizeof(z));
-            pGyroscopeCharacteristic->setValue((uint8_t *)gyroByteArray, imuCount*sizeof(x));
-            pGyroscopeCharacteristic->notify();
-            break;
-        case mag:
-            x = IMU.getMagX_uT();
-            y = IMU.getMagY_uT();
-            z = IMU.getMagZ_uT();
-            MEMCPY(&magByteArray[0], &x, sizeof(x));
-            MEMCPY(&magByteArray[4], &y, sizeof(y));
-            MEMCPY(&magByteArray[8], &z, sizeof(z));
-            pMagnetometerCharacteristic->setValue((uint8_t *)magByteArray, imuCount*sizeof(x));
-            pMagnetometerCharacteristic->notify();
-            break;
+        if (deviceConnected && pressureSensorsConnected)
+        {
+            uint16_t src1, src2;
+            for (int i = 0; i < 16; i++)
+            {
+                muxIntArray[i] = (uint16_t)readMux(i);
+            }
+
+            for (int i = 0; i < bottomSensorsCount; i++)
+            {
+                src1 = muxIntArray[i];
+                MEMCPY(&muxBottomByteArray[2*i], &src1, sizeof(src1));
+            }
+
+            for (int i = 0; i < topSensorsCount; i++) 
+            {
+                src2 = muxIntArray[i+bottomSensorsCount];
+                MEMCPY(&muxTopByteArray[2*i], &src2, sizeof(src2));
+            }
+
+            Serial.print("Bottom\n");
+            Serial.print("[ ");
+            for (int i = 0; i < bottomSensorsCount; i++)
+            {
+                MEMCPY(&src1, &muxBottomByteArray[2*i], sizeof(src1));
+                Serial.printf("%d ", src1);
+            }
+            Serial.print("]\n");
+
+            Serial.print("Top\n");
+            Serial.print("[ ");
+            for (int i = 0; i < topSensorsCount; i++)
+            {
+                MEMCPY(&src2, &muxTopByteArray[2*i], sizeof(src2));
+                Serial.printf("%d ", src2);
+            }
+            Serial.print("]\n");
+            
+            pTopSensorsCharacteristic->setValue((uint8_t *)muxTopByteArray, topSensorsCount*sizeof(src1));
+            pTopSensorsCharacteristic->notify();
+
+            pBottomSensorsCharacteristic->setValue((uint8_t *)muxBottomByteArray, bottomSensorsCount*sizeof(src2));
+            pBottomSensorsCharacteristic->notify();
+        }
+
+        vTaskDelay(pressureSensorSampleRate / portTICK_PERIOD_MS);
     }
 }
 
-void mpu9250BLELoop()
+void sensorMuxLoop()
 {
+    if (deviceConnected && pressureSensorsConnected)
+    {
 
-  IMU.readSensor();
+        uint16_t src1, src2;
+        for (int i = 0; i < 16; i++)
+        {
+            muxIntArray[i] = (uint16_t)readMux(i);
+        }
 
-  setIMUCharacteristic(acc);
-  setIMUCharacteristic(gyro);
-  setIMUCharacteristic(mag);
+        for (int i = 0; i < bottomSensorsCount; i++)
+        {
+            src1 = muxIntArray[i];
+            MEMCPY(&muxBottomByteArray[2*i], &src1, sizeof(src1));
+        }
 
-  #ifdef DEBUG_BLE_MPU_9250
-    float x, y, z;
-    MEMCPY(&x, &accByteArray[0], sizeof(x));
-    MEMCPY(&y, &accByteArray[4], sizeof(y));
-    MEMCPY(&z, &accByteArray[8], sizeof(z));
+        for (int i = 0; i < topSensorsCount; i++) 
+        {
+            src2 = muxIntArray[i+bottomSensorsCount];
+            MEMCPY(&muxTopByteArray[2*i], &src2, sizeof(src2));
+        }
 
-    Serial.printf("[Acc]\nx:%f\ny:%f\nz:%f\n\n", x, y, z);
+        Serial.print("Bottom\n");
+        Serial.print("[ ");
+        for (int i = 0; i < bottomSensorsCount; i++)
+        {
+            MEMCPY(&src1, &muxBottomByteArray[2*i], sizeof(src1));
+            Serial.printf("%d ", src1);
+        }
+        Serial.print("]\n");
 
-    MEMCPY(&x, &gyroByteArray[0], sizeof(x));
-    MEMCPY(&y, &gyroByteArray[4], sizeof(y));
-    MEMCPY(&z, &gyroByteArray[8], sizeof(z));
+        Serial.print("Top\n");
+        Serial.print("[ ");
+        for (int i = 0; i < topSensorsCount; i++)
+        {
+            MEMCPY(&src2, &muxTopByteArray[2*i], sizeof(src2));
+            Serial.printf("%d ", src2);
+        }
+        Serial.print("]\n");
+        
+        pTopSensorsCharacteristic->setValue((uint8_t *)muxTopByteArray, topSensorsCount*sizeof(src1));
+        pTopSensorsCharacteristic->notify();
 
-    Serial.printf("[Gyro]\nx:%f\ny:%f\nz:%f\n\n", x, y, z);
+        pBottomSensorsCharacteristic->setValue((uint8_t *)muxBottomByteArray, bottomSensorsCount*sizeof(src2));
+        pBottomSensorsCharacteristic->notify();
+    }
+}
 
-    MEMCPY(&x, &magByteArray[0], sizeof(x));
-    MEMCPY(&y, &magByteArray[4], sizeof(y));
-    MEMCPY(&z, &magByteArray[8], sizeof(z));
+void mpu9250DMPLoopCode(void *pvParameters)
+{
+    while(1)
+    {
+        if (deviceConnected && imuConnected)
+        {
+            if (imu.dataReady())
+            {
+                imu.update(UPDATE_ACCEL | UPDATE_GYRO | UPDATE_COMPASS);
+                setIMUData();
 
-    Serial.printf("[Mag]\nx:%f\ny:%f\nz:%f\n\n", x, y, z);
-  #endif
+                pYPRCharacteristic->setValue((uint8_t*)yprByteArray, 3*sizeof(float));
+                pYPRCharacteristic->notify();
+                
+                pMagnetometerCharacteristic->setValue((uint8_t*)magByteArray, 3*sizeof(float));
+                pMagnetometerCharacteristic->notify();
 
+                pAccelerometerCharacteristic->setValue((uint8_t*)accByteArray, 3*sizeof(float));
+                pAccelerometerCharacteristic->notify();
+                
+                pGyroscopeCharacteristic->setValue((uint8_t*)gyroByteArray, 3*sizeof(float));
+                pGyroscopeCharacteristic->notify();
+
+            }
+
+            // if (imu.fifoAvailable())
+            // {
+            //     // if (imu.tapAvailable())
+            //     // {
+            //     //     unsigned char tapDir = imu.getTapDir();
+            //     //     unsigned char tapCnt = imu.getTapCount(); 
+            //     //     // MEMCPY(&gestureConfigValues[0], &tapDir, sizeof(unsigned char));
+            //     //     // MEMCPY(&gestureConfigValues[1], &tapCnt, sizeof(unsigned char)); 
+            //     //     // pIMUConfigurationCharacteristic->setValue((uint8_t *)gestureConfigValues, 2*sizeof(unsigned char));
+            //     //     // pIMUConfigurationCharacteristic->notify();
+            //     //     switch (tapDir)
+            //     //     {
+            //     //     case TAP_X_UP:
+            //     //         Serial.printf("Tap X+ %d\n", tapCnt);
+            //     //         break;
+            //     //     case TAP_X_DOWN:
+            //     //         Serial.printf("Tap X- %d\n", tapCnt);
+            //     //         break;
+            //     //     case TAP_Y_UP:
+            //     //         Serial.printf("Tap Y+ %d\n", tapCnt);
+            //     //         break;
+            //     //     case TAP_Y_DOWN:
+            //     //         Serial.printf("Tap Y- %d\n", tapCnt);
+            //     //         break;
+            //     //     case TAP_Z_UP:
+            //     //         Serial.printf("Tap Z+ %d\n", tapCnt);
+            //     //         break;
+            //     //     case TAP_Z_DOWN:
+            //     //         Serial.printf("Tap Z- %d\n", tapCnt);
+            //     //         break;
+            //     //     }
+            //     // }
+            // }
+        }
+        vTaskDelay(accelGyroSampleRate / portTICK_PERIOD_MS);
+    }
 }
 
 void setup() 
 {
-  Serial.begin(115200); 
-  v2BLESetup(DEVICE_NAME);
-  setupSensorArrays();
-  setupMux();
-  setupHaptics();
-  setupMPU9250();
-
+    Serial.begin(115200); 
+    v2BLESetup(DEVICE_NAME);
+    setupSensorArrays();
+    setupMux();
+    setupHaptics();
+    
+    xTaskCreatePinnedToCore(sensorMuxLoopCode, "sensorMuxLoop", 4096, NULL, 1, &sensorMuxTask, 0);
+    xTaskCreatePinnedToCore(mpu9250DMPLoopCode, "imuLoop", 4096, NULL, 1, &imuTask, 0);
 }
 
 void loop() {
-  if (deviceConnected)
-  {
-    mpu9250BLELoop();
-    sensorMuxLoop();
-    HapticsState state = fireHapticsEffect(effect);
-
-    if (state == done)
-    {
-      pHapticsCharacteristic->setValue("1");
-      pHapticsCharacteristic->notify();
-    } 
-    if (state == incomplete)
-    {
-      pHapticsCharacteristic->setValue("2");
-      pHapticsCharacteristic->notify();
-    }
-  }
-
-  delay(samplingRate);
+    vTaskDelay(10);
 }
-
-
