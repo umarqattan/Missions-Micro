@@ -6,6 +6,7 @@
 void initByteArray(char *var, int length);
 void scanner();
 uint8_t getLength(uint8_t* byteArray);
+void printByteArray(uint8_t* byteArray);
 
 void initByteArray(char *var, int length)
 {
@@ -43,7 +44,28 @@ void scanner()
 uint8_t getLength(uint8_t* byteArray)
 {
   uint8_t i = 0;
-  while(byteArray && byteArray[i++] != '\0') {};
+  while(byteArray[i] != '\0')
+  {
+      i += 1;
+  }
 
   return i;
+}
+
+void printByteArray(uint8_t* byteArray)
+{
+    uint8_t i = 0;
+    Serial.printf("[");
+    while(byteArray[i] != '\0')
+    {
+        if (byteArray[i+1] == '\0')
+        {
+            Serial.printf("%d]", byteArray[i]);
+        }
+        else 
+        {
+            Serial.printf("%d, ", byteArray[i]);
+        }
+        i += 1;
+    }
 }

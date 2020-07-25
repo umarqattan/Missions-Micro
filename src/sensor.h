@@ -1,3 +1,4 @@
+
 // MARK: - Defines
 #define IS_RIGHT // IS_LEFT
 #define DEBUG_BLE_SENSORS
@@ -18,9 +19,6 @@ int s3 = 25;
 int SIG_pin = 36; 
 
 int controlPin[] = {s0, s1, s2, s3}; 
-
-int sensorSampleRate = 50;
-
 
 #ifdef IS_LEFT
 int muxChannel[16][4]= { 
