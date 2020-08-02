@@ -23,11 +23,9 @@ void setupSensorArrays()
 {
     initByteArray(muxTopByteArray, topSensorsCount*sizeof(uint16_t));
     initByteArray(muxBottomByteArray, bottomSensorsCount*sizeof(uint16_t));
-    initByteArray(yprByteArray, 3*sizeof(float));
-    initByteArray(magByteArray, 3*sizeof(short));
+    initByteArray(magByteArray, 3*sizeof(float));
     initByteArray(accByteArray, 3*sizeof(float));
     initByteArray(gyroByteArray, 3*sizeof(float));
-    initByteArray(gestureConfigValues, 2*sizeof(char));
 }
 
 void setSensorsCharacteristic(Sensors side, char *values, int length)
@@ -161,9 +159,6 @@ void mpu9250DMPLoopCode(void *pvParameters)
                 imu.update(UPDATE_ACCEL | UPDATE_GYRO | UPDATE_COMPASS);
                 setIMUData();
 
-                pYPRCharacteristic->setValue((uint8_t*)yprByteArray, 3*sizeof(float));
-                pYPRCharacteristic->notify();
-                
                 pMagnetometerCharacteristic->setValue((uint8_t*)magByteArray, 3*sizeof(float));
                 pMagnetometerCharacteristic->notify();
 
@@ -174,40 +169,6 @@ void mpu9250DMPLoopCode(void *pvParameters)
                 pGyroscopeCharacteristic->notify();
 
             }
-
-            // if (imu.fifoAvailable())
-            // {
-            //     // if (imu.tapAvailable())
-            //     // {
-            //     //     unsigned char tapDir = imu.getTapDir();
-            //     //     unsigned char tapCnt = imu.getTapCount(); 
-            //     //     // MEMCPY(&gestureConfigValues[0], &tapDir, sizeof(unsigned char));
-            //     //     // MEMCPY(&gestureConfigValues[1], &tapCnt, sizeof(unsigned char)); 
-            //     //     // pIMUConfigurationCharacteristic->setValue((uint8_t *)gestureConfigValues, 2*sizeof(unsigned char));
-            //     //     // pIMUConfigurationCharacteristic->notify();
-            //     //     switch (tapDir)
-            //     //     {
-            //     //     case TAP_X_UP:
-            //     //         Serial.printf("Tap X+ %d\n", tapCnt);
-            //     //         break;
-            //     //     case TAP_X_DOWN:
-            //     //         Serial.printf("Tap X- %d\n", tapCnt);
-            //     //         break;
-            //     //     case TAP_Y_UP:
-            //     //         Serial.printf("Tap Y+ %d\n", tapCnt);
-            //     //         break;
-            //     //     case TAP_Y_DOWN:
-            //     //         Serial.printf("Tap Y- %d\n", tapCnt);
-            //     //         break;
-            //     //     case TAP_Z_UP:
-            //     //         Serial.printf("Tap Z+ %d\n", tapCnt);
-            //     //         break;
-            //     //     case TAP_Z_DOWN:
-            //     //         Serial.printf("Tap Z- %d\n", tapCnt);
-            //     //         break;
-            //     //     }
-            //     // }
-            // }
         }
         vTaskDelay(accelGyroSampleRate / portTICK_PERIOD_MS);
     }

@@ -17,7 +17,6 @@
 #define BOTTOM_SENSORS_CHARACTERISTIC_UUID "0031a9bf-b569-4f8c-9d18-2256c9561d83"
 
 #define IMU_CONFIGURATION_CHARACTERISTIC_UUID "42ac498a-94da-4c68-b242-bcf8d92c17aa"
-#define YPR_CHARACTERISTIC_UUID "c7e6d447-a0a7-4e22-bf14-c0be89905302"
 #define ACCELEROMETER_CHARACTERISTIC_UUID "142bc492-b0cf-45ea-a496-338f21f1a815"
 #define GYROSCOPE_CHARACTERISTIC_UUID "46382de9-48e8-40b2-94fd-4612af2caa96"
 #define MAGNETOMETER_CHARACTERISTIC_UUID "be7db1c9-cddf-41cd-8146-cadebae3b308"
@@ -44,7 +43,6 @@ BLECharacteristic *pPressureSensorConfigurationCharacteristic;
 // MARK: - MPU9250 Service
 BLEService *pMPU9250Service;
 BLECharacteristic *pIMUConfigurationCharacteristic;
-BLECharacteristic *pYPRCharacteristic;
 BLECharacteristic *pMagnetometerCharacteristic;
 BLECharacteristic *pAccelerometerCharacteristic;
 BLECharacteristic *pGyroscopeCharacteristic;
@@ -59,7 +57,6 @@ enum BLESensorUUID {
     topSensors,
     bottomSensors,
     imuConfig,
-    yprSensors,
     magnetometerSensor,
     accelerometerSensor,
     gyroscopeSensor,
@@ -76,7 +73,6 @@ BLESensorUUID resolveUUID(std::string input)
 
     // IMU
     if (input == IMU_CONFIGURATION_CHARACTERISTIC_UUID) return imuConfig;
-    if (input == YPR_CHARACTERISTIC_UUID) return yprSensors;
     if (input == MAGNETOMETER_CHARACTERISTIC_UUID) return magnetometerSensor;
     if (input == ACCELEROMETER_CHARACTERISTIC_UUID) return accelerometerSensor;
     if (input == GYROSCOPE_CHARACTERISTIC_UUID) return gyroscopeSensor;
@@ -86,13 +82,6 @@ BLESensorUUID resolveUUID(std::string input)
 
     return none;
 }
-
-enum IMUGesture: uint8_t { 
-    noTap = 1,
-    singleTap = 2,
-    doubleTap = 3,
-    defaultTap
-};
 
 void startIMU(bool on, unsigned short agRate, unsigned short mRate)
 {
@@ -179,21 +168,6 @@ unsigned short resolvePressureSensorSampleRate(uint8_t sampleRate)
     }
 }
 
-IMUGesture resolveIMUGesture(uint8_t gesture)
-{
-    switch (gesture)
-    {
-        case 1:
-            return noTap;
-        case 2:
-            return singleTap;
-        case 3:
-            return doubleTap;
-        default:
-            return defaultTap;
-    }
-}
-
 inv_error_t updatePressureSensorConfiguration(uint8_t* configuration) 
 {
     if (getLength(configuration) == 1) 
@@ -248,7 +222,7 @@ inv_error_t updateIMUSensorConfiguration(uint8_t* configuration)
         startIMU(imuConnected, 0, 0);
         return INV_SUCCESS;
     }
-    else if (getLength(configuration) == 3) {
+    else if (getLength(configuration) == 2) {
         if (configuration[0] == 1)
         {
             imuConnected = false;
@@ -258,7 +232,7 @@ inv_error_t updateIMUSensorConfiguration(uint8_t* configuration)
             imuConnected = true;
         }
         accelGyroSampleRate = resolveIMUSampleRate(configuration[1], true);
-        magSampleRate = resolveIMUSampleRate(configuration[2], false);
+        magSampleRate = resolveIMUSampleRate(configuration[1], false);
 
         Serial.printf("IMU is %s\n", imuConnected ? "on" : "off");
         Serial.printf("Accel/Gyro Sample Rate: %d\n", accelGyroSampleRate);
@@ -457,14 +431,6 @@ void v2BLESetup(std::string deviceName) {
     );
     pIMUConfigurationCharacteristic->setCallbacks(new MyCallbacks());
 
-    pYPRCharacteristic = pMPU9250Service->createCharacteristic(
-                                           YPR_CHARACTERISTIC_UUID,
-                                           BLECharacteristic::PROPERTY_READ |
-                                           BLECharacteristic::PROPERTY_WRITE |
-                                           BLECharacteristic::PROPERTY_NOTIFY
-                                         );
-    pYPRCharacteristic->setCallbacks(new MyCallbacks());
-
     pMagnetometerCharacteristic = pMPU9250Service->createCharacteristic(
                                            MAGNETOMETER_CHARACTERISTIC_UUID,
                                            BLECharacteristic::PROPERTY_READ |
@@ -505,7 +471,6 @@ void v2BLESetup(std::string deviceName) {
     pBottomSensorsCharacteristic->addDescriptor(new BLE2902());
    
     pIMUConfigurationCharacteristic->addDescriptor(new BLE2902());
-    pYPRCharacteristic->addDescriptor(new BLE2902());
     pMagnetometerCharacteristic->addDescriptor(new BLE2902());
     pAccelerometerCharacteristic->addDescriptor(new BLE2902());
     pGyroscopeCharacteristic->addDescriptor(new BLE2902());
