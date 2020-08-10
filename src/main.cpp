@@ -35,12 +35,12 @@ void setSensorsCharacteristic(Sensors side, char *values, int length)
         switch (side) 
         {
             case top:
-                pTopSensorsCharacteristic->setValue((uint8_t *)values, length);
-                pTopSensorsCharacteristic->notify();
+                // pTopSensorsCharacteristic->setValue((uint8_t *)values, length);
+                // pTopSensorsCharacteristic->notify();
                 break;
             case bottom:
-                pBottomSensorsCharacteristic->setValue((uint8_t *)values, length);
-                pBottomSensorsCharacteristic->notify();
+                // pBottomSensorsCharacteristic->setValue((uint8_t *)values, length);
+                // pBottomSensorsCharacteristic->notify();
                 break;
         }
     }
@@ -88,11 +88,11 @@ void sensorMuxLoopCode(void *pvParameters)
             }
             Serial.print("]\n");
             
-            pTopSensorsCharacteristic->setValue((uint8_t *)muxTopByteArray, topSensorsCount*sizeof(src1));
-            pTopSensorsCharacteristic->notify();
+            // pTopSensorsCharacteristic->setValue((uint8_t *)muxTopByteArray, topSensorsCount*sizeof(src1));
+            // pTopSensorsCharacteristic->notify();
 
-            pBottomSensorsCharacteristic->setValue((uint8_t *)muxBottomByteArray, bottomSensorsCount*sizeof(src2));
-            pBottomSensorsCharacteristic->notify();
+            // pBottomSensorsCharacteristic->setValue((uint8_t *)muxBottomByteArray, bottomSensorsCount*sizeof(src2));
+            // pBottomSensorsCharacteristic->notify();
         }
 
         vTaskDelay(pressureSensorSampleRate / portTICK_PERIOD_MS);
@@ -140,11 +140,11 @@ void sensorMuxLoop()
         }
         Serial.print("]\n");
         
-        pTopSensorsCharacteristic->setValue((uint8_t *)muxTopByteArray, topSensorsCount*sizeof(src1));
-        pTopSensorsCharacteristic->notify();
+        // pTopSensorsCharacteristic->setValue((uint8_t *)muxTopByteArray, topSensorsCount*sizeof(src1));
+        // pTopSensorsCharacteristic->notify();
 
-        pBottomSensorsCharacteristic->setValue((uint8_t *)muxBottomByteArray, bottomSensorsCount*sizeof(src2));
-        pBottomSensorsCharacteristic->notify();
+        // pBottomSensorsCharacteristic->setValue((uint8_t *)muxBottomByteArray, bottomSensorsCount*sizeof(src2));
+        // pBottomSensorsCharacteristic->notify();
     }
 }
 
@@ -156,17 +156,17 @@ void mpu9250DMPLoopCode(void *pvParameters)
         {
             if (imu.dataReady())
             {
-                imu.update(UPDATE_ACCEL | UPDATE_GYRO | UPDATE_COMPASS);
+                imu.update(imuSensors);
                 setIMUData();
 
-                pMagnetometerCharacteristic->setValue((uint8_t*)magByteArray, 3*sizeof(float));
-                pMagnetometerCharacteristic->notify();
+                // pMagnetometerCharacteristic->setValue((uint8_t*)magByteArray, 3*sizeof(float));
+                // pMagnetometerCharacteristic->notify();
 
-                pAccelerometerCharacteristic->setValue((uint8_t*)accByteArray, 3*sizeof(float));
-                pAccelerometerCharacteristic->notify();
+                // pAccelerometerCharacteristic->setValue((uint8_t*)accByteArray, 3*sizeof(float));
+                // pAccelerometerCharacteristic->notify();
                 
-                pGyroscopeCharacteristic->setValue((uint8_t*)gyroByteArray, 3*sizeof(float));
-                pGyroscopeCharacteristic->notify();
+                // pGyroscopeCharacteristic->setValue((uint8_t*)gyroByteArray, 3*sizeof(float));
+                // pGyroscopeCharacteristic->notify();
 
             }
         }
