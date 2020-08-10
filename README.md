@@ -10,6 +10,9 @@
 #define SERVICE_UUID_1 "4fafc201-1fb5-459e-8fcc-c5c9c331914b" 
 ```
 
+## Generate UUIDs
+[_Online UUID Generator_](https://uuidgenerator.net)
+
 ### Characteristics
 _Write to this one to update the Pressure Sensors_  
 ```c

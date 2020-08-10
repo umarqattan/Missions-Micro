@@ -12,6 +12,10 @@
 #define SERVICE_UUID_2 "7a658cba-0dcd-4d02-bb97-80296cf72dfd"
 #define SERVICE_UUID_3 "31408399-730b-4d53-911e-993cd531e96f"
 
+#define CONFIGURATION_CHARACTERISTIC_UUID "5a6256f0-fc1c-42b5-ba7b-6585f39cfc7e"
+#define DATA_CHARACTERISTIC_UUID "7f922bbb-74d8-45a4-833f-e3bdbcfca5a2"
+
+
 #define PRESSURE_SENSOR_CONFIGURATION_CHARACTERISTIC_UUID "9229de5d-1d33-4b66-8ac7-0e4993f743f8"
 #define TOP_SENSORS_CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 #define BOTTOM_SENSORS_CHARACTERISTIC_UUID "0031a9bf-b569-4f8c-9d18-2256c9561d83"
@@ -27,64 +31,69 @@
 bool deviceConnected = false;
 bool pressureSensorsConnected = false;
 bool imuConnected = false;
+unsigned char imuSensors = UPDATE_ACCEL | UPDATE_GYRO | UPDATE_COMPASS;
 unsigned short accelGyroSampleRate = 64;
 unsigned short pressureSensorSampleRate = 64;
 unsigned short magSampleRate = 64;
 bool start = true;
 
 BLEServer *pV2Server;
-
-// MARK: - Sensors Service
-BLEService *pSensorsService;
-BLECharacteristic *pTopSensorsCharacteristic;
-BLECharacteristic *pBottomSensorsCharacteristic;
-BLECharacteristic *pPressureSensorConfigurationCharacteristic;
-
-// MARK: - MPU9250 Service
-BLEService *pMPU9250Service;
-BLECharacteristic *pIMUConfigurationCharacteristic;
-BLECharacteristic *pMagnetometerCharacteristic;
-BLECharacteristic *pAccelerometerCharacteristic;
-BLECharacteristic *pGyroscopeCharacteristic;
+// MARK: - Data Service
+BLEService *pDataService;
+BLECharacteristic *pDataCharacteristic;
+BLECharacteristic *pConfigurationCharacteristic; 
 
 // MARK: - Haptics Service
 BLEService *pHapticsService;
 BLECharacteristic *pHapticsCharacteristic;
 
 // MARK: - Enums
-enum BLESensorUUID {
-    pressureSensorConfig,
-    topSensors,
-    bottomSensors,
-    imuConfig,
-    magnetometerSensor,
-    accelerometerSensor,
-    gyroscopeSensor,
+enum mBLEUUID {
+    config = 1,
+    data,
     haptics,
     none
 };
 
-BLESensorUUID resolveUUID(std::string input)
-{
-    // Pressure Sensors
-    if (input == PRESSURE_SENSOR_CONFIGURATION_CHARACTERISTIC_UUID) return pressureSensorConfig;
-    if (input == TOP_SENSORS_CHARACTERISTIC_UUID) return topSensors;
-    if (input == BOTTOM_SENSORS_CHARACTERISTIC_UUID) return bottomSensors;
+enum mBLEDataSource { 
+    topSensor = 1,
+    bottomSensor,
+    accelerometer,
+    gyroscope,
+    magnetometer,
+    noSource
+};
 
-    // IMU
-    if (input == IMU_CONFIGURATION_CHARACTERISTIC_UUID) return imuConfig;
-    if (input == MAGNETOMETER_CHARACTERISTIC_UUID) return magnetometerSensor;
-    if (input == ACCELEROMETER_CHARACTERISTIC_UUID) return accelerometerSensor;
-    if (input == GYROSCOPE_CHARACTERISTIC_UUID) return gyroscopeSensor;
-    
-    // Haptics
+
+mBLEDataSource resolveDataSource(uint8_t source)
+{
+    switch (source)
+    {
+        case topSensor: return topSensor;
+        case bottomSensor: return bottomSensor;
+        case accelerometer: return accelerometer;
+        case gyroscope: return gyroscope;
+        case magnetometer: return magnetometer;
+        default: return noSource;
+    }
+}
+
+mBLEUUID resolveUUID(std::string input)
+{
+    if (input == CONFIGURATION_CHARACTERISTIC_UUID) return config;
+    if (input == DATA_CHARACTERISTIC_UUID) return data;
     if (input == HAPTICS_CHARACTERISTIC_UUID) return haptics;
 
     return none;
 }
 
-void startIMU(bool on, unsigned short agRate, unsigned short mRate)
+void startIMU(unsigned char accelBit, unsigned char gyroBit, unsigned char magBit)
 {
+    unsigned char on = accelBit | gyroBit | magBit;
+    Serial.printf("accelBit: %d\n", accelBit);
+    Serial.printf("gyroBit: %d\n", gyroBit);
+    Serial.printf("magBit: %d\n", magBit);
+
     if (on)
     {
         if (imu.begin() != INV_SUCCESS)
@@ -98,8 +107,8 @@ void startIMU(bool on, unsigned short agRate, unsigned short mRate)
             }
         }
 
-        imu.setSensors(INV_XYZ_GYRO | INV_XYZ_ACCEL | INV_XYZ_COMPASS);
-
+        imu.setSensors(accelBit | gyroBit | magBit);
+        
         // Use setGyroFSR() and setAccelFSR() to configure the
         // gyroscope and accelerometer full scale ranges.
         // Gyro options are +/- 250, 500, 1000, or 2000 dps
@@ -117,16 +126,36 @@ void startIMU(bool on, unsigned short agRate, unsigned short mRate)
 
         // The sample rate of the accel/gyro can be set using
         // setSampleRate. Acceptable values range from 4Hz to 1kHz
-        imu.setSampleRate(agRate); // Set sample rate to 10Hz (4 - 1000)
+        imu.setSampleRate(accelGyroSampleRate); // Set sample rate to 10Hz (4 - 1000)
 
         // Likewise, the compass (magnetometer) sample rate can be
         // set using the setCompassSampleRate() function.
         // This value can range between: 1-100Hz (1 - 100 Hz)
-        imu.setCompassSampleRate(mRate); // Set mag rate to 10Hz
+        imu.setCompassSampleRate(magSampleRate); // Set mag rate to 10Hz
+        imuConnected = true;
     }
     else
     {
         imu.setSensors(0);
+        imuConnected = false;
+    }
+    Serial.printf("imuConnected: %d\n", imuConnected);
+}
+
+unsigned short resolvePressureSensorSampleRate(uint8_t sampleRate)
+{
+    switch (sampleRate) 
+    {
+        case 0:
+            return 40;
+        case 1:
+            return 80;
+        case 2:
+            return 160;
+        case 3:
+            return 240;
+        default:
+            return 500;
     }
 }
 
@@ -135,125 +164,71 @@ unsigned short resolveIMUSampleRate(uint8_t sampleRate, bool accelGyro)
     switch (sampleRate) 
     {
         case 1:
-            return accelGyro ? 32 : 10;
+            return accelGyro ? 50 : 25;
         case 2:
-            return accelGyro ? 64 : 20;
+            return accelGyro ? 250 : 50;
         case 3:
-            return accelGyro ? 128 : 40;
-        case 4:
-            return accelGyro ? 256 : 60;
-        case 5:
-            return accelGyro ? 512 : 80;
+            return accelGyro ? 500 : 100;
         default: 
             return accelGyro ? 10 : 10;
     }
 }
 
-unsigned short resolvePressureSensorSampleRate(uint8_t sampleRate)
+void configurePressureSensors(uint8_t sampleRate, uint8_t pressureBit)
 {
-    switch (sampleRate) 
+    Serial.printf("pressureSensorsConnected: %d\n", pressureBit);
+    pressureSensorsConnected = pressureBit;
+    pressureSensorSampleRate = resolvePressureSensorSampleRate(sampleRate);
+}
+
+void configureIMU(uint8_t sampleRate, uint8_t accelBit, uint8_t gyroBit, uint8_t magBit)
+{
+    unsigned char shouldUpdateAccel = accelBit ? UPDATE_ACCEL : 0;
+    unsigned char shouldUpdateGyro = gyroBit ? UPDATE_GYRO : 0;
+    unsigned char shouldUpdateMag = magBit ? UPDATE_COMPASS : 0;
+    imuSensors = shouldUpdateAccel | shouldUpdateGyro | shouldUpdateMag;
+    Serial.printf("imuSensors: %d\n", imuSensors);
+    accelGyroSampleRate = resolveIMUSampleRate(sampleRate, true);
+    magSampleRate = resolveIMUSampleRate(sampleRate, false);
+    startIMU(accelBit, gyroBit, magBit);
+}
+
+void updateDataProvider(uint8_t* configuration)
+{
+    uint8_t length = getLength(configuration);
+    if (length == 1)
     {
-        case 1:
-            return 32;
-        case 2:
-            return 64;
-        case 3:
-            return 128;
-        case 4:
-            return 256;
-        case 5:
-            return 512;
-        default: 
-            return 64;
+        uint8_t byte = configuration[0];
+        uint8_t pressureBit = (byte & (1 << 4)) >> 4;
+
+        unsigned char accelBit = (unsigned char)((byte & (1 << 5)) >> 5);
+        accelBit = accelBit ? INV_XYZ_ACCEL : 0;
+
+        unsigned char gyroBit = (unsigned char)((byte & (1 << 6)) >> 6);
+        gyroBit = gyroBit ? INV_XYZ_GYRO : 0;
+
+        unsigned char magBit = (unsigned char)((byte & (1 << 7)) >> 7);
+        magBit = magBit ? INV_XYZ_COMPASS : 0;
+
+        unsigned char imuBitSampleRate = (byte & 0xC) >> 2;
+        unsigned char pressureBitSampleRate = byte & 0x3;
+
+        configureIMU(imuBitSampleRate, accelBit, gyroBit, magBit);        
+        configurePressureSensors(pressureBitSampleRate, pressureBit);
+    }
+    else 
+    {
+        Serial.printf("incorrect length %d: getLength(configuration) != 1", length);
     }
 }
 
-inv_error_t updatePressureSensorConfiguration(uint8_t* configuration) 
-{
-    if (getLength(configuration) == 1) 
-    {
-        if (configuration[0] == 1)
-        {
-            pressureSensorsConnected = false;
-        } 
-        else if (configuration[0] == 2)
-        {
-            pressureSensorsConnected = true;
-        }
-        Serial.printf("Pressure sensors are %s\n", pressureSensorsConnected ? "on" : "off");
-        return INV_SUCCESS;
-    }
-    else if (getLength(configuration) == 2)
-     {
-        if (configuration[0] == 1)
-        {
-            pressureSensorsConnected = false;
-        } 
-        else if (configuration[0] == 2)
-        {
-            pressureSensorsConnected = true;
-        }
-        pressureSensorSampleRate = resolvePressureSensorSampleRate(configuration[1]);
-
-        Serial.printf("Pressure sensors are %s\n", pressureSensorsConnected ? "on" : "off");
-        Serial.printf("Sample Rate: %d\n", pressureSensorSampleRate);
-
-        return INV_SUCCESS;
-    }
-
-    Serial.println("Pressure Sensor `configuration` needs to be of length 2");
-    return INV_ERROR;
-}
-
-inv_error_t updateIMUSensorConfiguration(uint8_t* configuration) 
-{
-
-    if (getLength(configuration) == 1)
-    {
-        if (configuration[0] == 1)
-        {
-            imuConnected = false;
-        } 
-        else if (configuration[0] == 2)
-        {
-            imuConnected = true;
-        }
-        Serial.printf("IMU is %s\n", imuConnected ? "on" : "off");
-        startIMU(imuConnected, 0, 0);
-        return INV_SUCCESS;
-    }
-    else if (getLength(configuration) == 2) {
-        if (configuration[0] == 1)
-        {
-            imuConnected = false;
-        } 
-        else if (configuration[0] == 2)
-        {
-            imuConnected = true;
-        }
-        accelGyroSampleRate = resolveIMUSampleRate(configuration[1], true);
-        magSampleRate = resolveIMUSampleRate(configuration[1], false);
-
-        Serial.printf("IMU is %s\n", imuConnected ? "on" : "off");
-        Serial.printf("Accel/Gyro Sample Rate: %d\n", accelGyroSampleRate);
-        Serial.printf("Mag Sample Rate: %d\n", magSampleRate);
-
-        startIMU(imuConnected, accelGyroSampleRate, magSampleRate);
-        return INV_SUCCESS;
-    }
-
-    Serial.println("IMU Sensor `configuration` needs to be of length 2");
-    return INV_ERROR;
-}
-
-inv_error_t updateHapticsConfiguration(uint8_t* configuration) 
+void updateHapticsConfiguration(uint8_t* configuration) 
 {
     uint8_t length = getLength(configuration);
     if (length < 1 || length > lastSlot) 
     {
         Serial.println("Could not set waveform for haptics event.");
         Serial.printf("Haptics motor `configuration` length needs to be at least 1 and less than %d\n", lastSlot);
-        return INV_ERROR;
     }
     else
     {
@@ -265,7 +240,6 @@ inv_error_t updateHapticsConfiguration(uint8_t* configuration)
         drv.go();
         delay(hapticsSampleRate);
         Serial.println("Successfully played haptics event.");
-        return INV_SUCCESS;
     }
 }
 
@@ -287,69 +261,17 @@ class MyCallbacks: public BLECharacteristicCallbacks {
         std::string uuidString = pCharacteristic->getUUID().toString();
         switch(resolveUUID(uuidString))
         {
-            /**
-                 * Pressure Sensor Configuration
-                 *  1. isConnected
-                 *      on:  0x01
-                 *      off: 0x02
-                 *  2. sampleRate (1-5 from verySlow to veryFast)
-                 *      1: verySlow  0x01 -> 320ms
-                 *      2: slow      0x02 -> 240ms
-                 *      3: medium    0x03 -> 160ms
-                 *      4: fast      0x04 ->  80ms
-                 *      5: veryFast  0x05 ->  40ms
-                 **/
-            case pressureSensorConfig:
+
+            case config:
             {
-                Serial.println("Attempting to write to `PRESSURE_SENSORS_CONFIGURATION_CHARACTERISTIC_UUID`");
-                uint8_t* data = pCharacteristic->getData();
-
-                inv_error_t pscError = updatePressureSensorConfiguration(data);
-
-                if (pscError == INV_SUCCESS)
-                {
-                    Serial.println("Successfully updated pressure sensor configuration...");
-                }
-                else if (pscError == INV_ERROR)
-                {
-                    printByteArray(data);   
-                }
-                
+                Serial.println("Attempting to write to `CONFIGURATION_CHARACTERISTIC_UUID`");
+                uint8_t* configuration = pCharacteristic->getData();
+                updateDataProvider(configuration);
                 break;
             }
-            case imuConfig:
+            case data:
             {
-                /**
-                 * IMU Configuration
-                 *  1. isConnected
-                 *      off: 0x01
-                 *      on:  0x02
-                 *  2. accelGyroSampleRate (1-5 from verySlow to veryFast)
-                 *      1: verySlow  0x01 -> 512Hz
-                 *      2: slow      0x02 -> 256Hz
-                 *      3: medium    0x03 -> 128Hz
-                 *      4: fast      0x04 ->  64Hz
-                 *      5: veryFast  0x05 ->  32Hz
-                 *  3. magSampleRate (1-5 from verySlow to veryFast)
-                 *      1: verySlow  0x01 -> 80Hz
-                 *      2: slow      0x02 -> 60Hz
-                 *      3: medium    0x03 -> 40Hz
-                 *      4: fast      0x04 ->  20Hz
-                 *      5: veryFast  0x05 ->  10Hz
-                 **/
-                Serial.println("Attempting to write to `IMU_CONFIGURATION_CHARACTERISTIC_UUID`");
-                uint8_t* data = pCharacteristic->getData();
-                inv_error_t imuError = updateIMUSensorConfiguration(data);
-
-                if (imuError == INV_SUCCESS)
-                {
-                    Serial.println("Successfully updated IMU sensor configuration...");
-                }
-                else if (imuError == INV_ERROR)
-                {
-                    printByteArray(data);   
-                }
-                break;
+                return;
             }
             case haptics: 
             {
@@ -364,15 +286,7 @@ class MyCallbacks: public BLECharacteristicCallbacks {
                  **/
                 Serial.println("Attempting to write to `HAPTICS_CHARACTERISTIC_UUID`"); 
                 uint8_t* data = pCharacteristic->getData();
-                inv_error_t hapticsError = updateHapticsConfiguration(data);
-                if (hapticsError == INV_SUCCESS)
-                {
-                    Serial.println("Successfully fired haptics event..");
-                }
-                else if (hapticsError == INV_ERROR)
-                {
-                    printByteArray(data);   
-                }
+                updateHapticsConfiguration(data);
                 break;
             }
             case none:
@@ -393,68 +307,24 @@ void v2BLESetup(std::string deviceName) {
     pV2Server->setCallbacks(new MyServerCallbacks());
 
     // Create the BLE Service
-    pSensorsService = pV2Server->createService(SERVICE_UUID_1);
-    pMPU9250Service = pV2Server->createService(SERVICE_UUID_2);
+    pDataService = pV2Server->createService(SERVICE_UUID_1);
     pHapticsService = pV2Server->createService(SERVICE_UUID_3);
 
-    pPressureSensorConfigurationCharacteristic = pSensorsService->createCharacteristic(
-                                            PRESSURE_SENSOR_CONFIGURATION_CHARACTERISTIC_UUID,
+    pDataCharacteristic = pDataService->createCharacteristic(
+                                            DATA_CHARACTERISTIC_UUID,
                                             BLECharacteristic::PROPERTY_READ |
                                             BLECharacteristic::PROPERTY_WRITE |
                                             BLECharacteristic::PROPERTY_NOTIFY
     );
-    pPressureSensorConfigurationCharacteristic->setCallbacks(new MyCallbacks());
+    pDataCharacteristic->setCallbacks(new MyCallbacks());
 
-    pTopSensorsCharacteristic = pSensorsService->createCharacteristic(
-                                            TOP_SENSORS_CHARACTERISTIC_UUID,
+    pConfigurationCharacteristic = pDataService->createCharacteristic(
+                                            CONFIGURATION_CHARACTERISTIC_UUID,
                                             BLECharacteristic::PROPERTY_READ |
                                             BLECharacteristic::PROPERTY_WRITE |
                                             BLECharacteristic::PROPERTY_NOTIFY
-                                        );
-    pTopSensorsCharacteristic->setCallbacks(new MyCallbacks());
-
-
-    pBottomSensorsCharacteristic = pSensorsService->createCharacteristic(
-                                            BOTTOM_SENSORS_CHARACTERISTIC_UUID,
-                                            BLECharacteristic::PROPERTY_READ |
-                                            BLECharacteristic::PROPERTY_WRITE |
-                                            BLECharacteristic::PROPERTY_NOTIFY
-                                        );
-    pBottomSensorsCharacteristic->setCallbacks(new MyCallbacks());
-
-    pIMUConfigurationCharacteristic = pMPU9250Service->createCharacteristic(
-                                            IMU_CONFIGURATION_CHARACTERISTIC_UUID,
-                                            BLECharacteristic::PROPERTY_READ |
-                                            BLECharacteristic::PROPERTY_WRITE |
-                                            BLECharacteristic::PROPERTY_NOTIFY
-
     );
-    pIMUConfigurationCharacteristic->setCallbacks(new MyCallbacks());
-
-    pMagnetometerCharacteristic = pMPU9250Service->createCharacteristic(
-                                           MAGNETOMETER_CHARACTERISTIC_UUID,
-                                           BLECharacteristic::PROPERTY_READ |
-                                           BLECharacteristic::PROPERTY_WRITE |
-                                           BLECharacteristic::PROPERTY_NOTIFY
-                                         );
-    pMagnetometerCharacteristic->setCallbacks(new MyCallbacks());
-
-    pAccelerometerCharacteristic = pMPU9250Service->createCharacteristic(
-                                           ACCELEROMETER_CHARACTERISTIC_UUID,
-                                           BLECharacteristic::PROPERTY_READ |
-                                           BLECharacteristic::PROPERTY_WRITE |
-                                           BLECharacteristic::PROPERTY_NOTIFY
-                                         );
-    pAccelerometerCharacteristic->setCallbacks(new MyCallbacks());
-
-
-    pGyroscopeCharacteristic = pMPU9250Service->createCharacteristic(
-                                           GYROSCOPE_CHARACTERISTIC_UUID,
-                                           BLECharacteristic::PROPERTY_READ |
-                                           BLECharacteristic::PROPERTY_WRITE |
-                                           BLECharacteristic::PROPERTY_NOTIFY
-                                         );
-    pGyroscopeCharacteristic->setCallbacks(new MyCallbacks());
+    pConfigurationCharacteristic->setCallbacks(new MyCallbacks());
 
     pHapticsCharacteristic = pHapticsService->createCharacteristic(
                                            HAPTICS_CHARACTERISTIC_UUID,
@@ -464,22 +334,13 @@ void v2BLESetup(std::string deviceName) {
                                          );
     pHapticsCharacteristic->setCallbacks(new MyCallbacks());
 
-
     // BLE2902 needed to notify
-    pPressureSensorConfigurationCharacteristic->addDescriptor(new BLE2902());
-    pTopSensorsCharacteristic->addDescriptor(new BLE2902());
-    pBottomSensorsCharacteristic->addDescriptor(new BLE2902());
-   
-    pIMUConfigurationCharacteristic->addDescriptor(new BLE2902());
-    pMagnetometerCharacteristic->addDescriptor(new BLE2902());
-    pAccelerometerCharacteristic->addDescriptor(new BLE2902());
-    pGyroscopeCharacteristic->addDescriptor(new BLE2902());
-
+    pDataCharacteristic->addDescriptor(new BLE2902());
+    pConfigurationCharacteristic->addDescriptor(new BLE2902());
     pHapticsCharacteristic->addDescriptor(new BLE2902());
 
     // Start services
-    pSensorsService->start();
-    pMPU9250Service->start();
+    pDataService->start();
     pHapticsService->start();
 
     // Start advertising
