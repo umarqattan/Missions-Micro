@@ -3,25 +3,28 @@
 #define IS_LEFT //IS_RIGHT 
 #define DEBUG_BLE_SENSORS
 
+#define PRESSURE_ON 0x1 << 4
+
 // MARK: - MUX variables
 enum Sensors { top, bottom };
 
-uint16_t muxIntArray[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-char muxTopByteArray[20];
-char muxBottomByteArray[12];
+uint8_t muxByteArray[30];
+uint8_t muxTopByteArray[20];
+uint8_t muxBottomByteArray[12];
 
-int topSensorsCount = 10;
-int bottomSensorsCount = 6;
-int s0 = 4;
-int s1 = 12;
-int s2 = 15;
-int s3 = 25;
-int SIG_pin = 36; 
+uint8_t topSensorsCount = 10;
+uint8_t bottomSensorsCount = 6;
+uint8_t sensorsCount = 16;
+uint8_t s0 = 4;
+uint8_t s1 = 12;
+uint8_t s2 = 15;
+uint8_t s3 = 25;
+uint8_t SIG_pin = 36; 
 
-int controlPin[] = {s0, s1, s2, s3}; 
+uint8_t controlPin[] = {s0, s1, s2, s3}; 
 
 #ifdef IS_LEFT
-int muxChannel[16][4]= { 
+uint8_t muxChannel[16][4]= { 
     {1,1,1,0}, //channel 7 
     {0,1,1,0}, //channel 6 
     {1,0,1,0}, //channel 5 
@@ -42,7 +45,7 @@ int muxChannel[16][4]= {
 #endif
 
 #ifdef IS_RIGHT
-int muxChannel[16][4]={ 
+uint8_t muxChannel[16][4]={ 
     {1,0,1,1}, //channel 13
     {0,0,1,1}, //channel 12
     {1,1,0,1}, //channel 11
@@ -63,7 +66,7 @@ int muxChannel[16][4]={
 #endif
 
 void setupMux();
-int readMux(int channel);
+uint16_t readMux(uint8_t channel);
 void sensorMuxLoop();
 void printMux();
 
@@ -80,21 +83,21 @@ void setupMux()
   digitalWrite(s3, LOW);
 }
 
-int readMux(int channel)
+uint16_t readMux(uint8_t channel)
 {     
-  for(int i = 0; i < 4; i ++)
+  for(uint8_t i = 0; i < 4; i ++)
   { 
     digitalWrite(controlPin[i], muxChannel[channel][i]); 
   } 
   
-  int val = analogRead(SIG_pin);
+  uint16_t val = analogRead(SIG_pin);
   return val; 
 }
 
 void printMux()
 {
   Serial.print("[");
-  for(int i = 0; i < 16; i++)
+  for(uint8_t i = 0; i < 16; i++)
   { 
     if (i < 15) 
     {
