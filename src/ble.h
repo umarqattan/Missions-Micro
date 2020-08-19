@@ -32,9 +32,13 @@ bool deviceConnected = false;
 bool pressureSensorsConnected = false;
 bool imuConnected = false;
 unsigned char imuSensors = UPDATE_ACCEL | UPDATE_GYRO | UPDATE_COMPASS;
+unsigned char imuBitConfiguration = 0;
+unsigned char pressureBitConfiguration = 0;
+unsigned char sensorConfiguration = 0;
 unsigned short accelGyroSampleRate = 64;
 unsigned short pressureSensorSampleRate = 64;
 unsigned short magSampleRate = 64;
+uint8_t mtuValue = 30;
 bool start = true;
 
 BLEServer *pV2Server;
@@ -201,18 +205,21 @@ void updateDataProvider(uint8_t* configuration)
         uint8_t byte = configuration[0];
         uint8_t pressureBit = (byte & (1 << 4)) >> 4;
 
-        unsigned char accelBit = (unsigned char)((byte & (1 << 5)) >> 5);
-        accelBit = accelBit ? INV_XYZ_ACCEL : 0;
+        unsigned char accelConfigBit = (unsigned char)((byte & (1 << 5)) >> 5);
+        unsigned char accelBit = accelConfigBit ? INV_XYZ_ACCEL : 0;
 
-        unsigned char gyroBit = (unsigned char)((byte & (1 << 6)) >> 6);
-        gyroBit = gyroBit ? INV_XYZ_GYRO : 0;
+        unsigned char gyroConfigBit = (unsigned char)((byte & (1 << 6)) >> 6);
+        unsigned char gyroBit = gyroConfigBit ? INV_XYZ_GYRO : 0;
 
-        unsigned char magBit = (unsigned char)((byte & (1 << 7)) >> 7);
-        magBit = magBit ? INV_XYZ_COMPASS : 0;
+        unsigned char magConfigBit = (unsigned char)((byte & (1 << 7)) >> 7);
+        unsigned char magBit = magConfigBit ? INV_XYZ_COMPASS : 0;
 
         unsigned char imuBitSampleRate = (byte & 0xC) >> 2;
         unsigned char pressureBitSampleRate = byte & 0x3;
 
+        imuBitConfiguration = ((accelConfigBit << 5) | (gyroConfigBit << 6) | (magConfigBit << 7));
+        pressureBitConfiguration = (pressureBit << 4);
+        sensorConfiguration = (imuBitConfiguration | pressureBitConfiguration) & 0xF0;
         configureIMU(imuBitSampleRate, accelBit, gyroBit, magBit);        
         configurePressureSensors(pressureBitSampleRate, pressureBit);
     }
@@ -302,6 +309,7 @@ class MyCallbacks: public BLECharacteristicCallbacks {
 void v2BLESetup(std::string deviceName) {
     // Create the BLE Device
     BLEDevice::init(deviceName);
+    BLEDevice::setMTU(mtuValue);
     // Create the BLE Server
     pV2Server = BLEDevice::createServer();
     pV2Server->setCallbacks(new MyServerCallbacks());
