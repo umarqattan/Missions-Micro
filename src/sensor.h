@@ -1,16 +1,20 @@
 
 // MARK: - Defines
-#define IS_LEFT 
+#define IS_RIGHT
 #define DEBUG_BLE_SENSORS
+#define PRESSURE_SIZE 37
+#define TOP_SIZE 20
+#define BOTTOM_SIZE 12
 
 #define PRESSURE_ON 0x1 << 4
 
 // MARK: - MUX variables
 enum Sensors { top, bottom };
 
-uint8_t muxByteArray[30];
-uint8_t muxTopByteArray[20];
-uint8_t muxBottomByteArray[12];
+
+uint8_t muxByteArray[PRESSURE_SIZE];
+uint8_t muxTopByteArray[TOP_SIZE];
+uint8_t muxBottomByteArray[BOTTOM_SIZE];
 
 uint8_t topSensorsCount = 10;
 uint8_t bottomSensorsCount = 6;
