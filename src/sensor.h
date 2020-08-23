@@ -1,6 +1,6 @@
 
 // MARK: - Defines
-#define IS_LEFT //IS_RIGHT 
+#define IS_LEFT 
 #define DEBUG_BLE_SENSORS
 
 #define PRESSURE_ON 0x1 << 4
