@@ -104,6 +104,15 @@ void printPressureByteArray(uint8_t *byteArray)
         Serial.printf("%d ", byteArray[i + bottomSensorsCount + 1]);
     }
     Serial.println("]");
+
+    Serial.println("Time");
+    Serial.print("[ ");
+    for (uint8_t i = 0; i < 4; i++)
+    {
+        Serial.printf("%d ", byteArray[i + bottomSensorsCount + topSensorsCount + 1]);
+    }
+    Serial.println("]");
+
 }
 
 void printByteArray(uint8_t *byteArray)

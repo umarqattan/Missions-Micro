@@ -15,7 +15,7 @@ MPU9250_DMP imu;
 uint8_t accByteArray[6];
 uint8_t gyroByteArray[6];
 uint8_t magByteArray[6]; 
-uint8_t imuByteArray[19];
+uint8_t imuByteArray[25];
 uint8_t gestureConfigValues[2];
 
 void setupMPU9250();
