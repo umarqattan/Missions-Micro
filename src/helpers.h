@@ -10,6 +10,7 @@ void scanner();
 uint8_t getLength(uint8_t *byteArray);
 void printByteArray(uint8_t *byteArray);
 void printPressureByteArray(uint8_t *sensorByteArray);
+void printIMUByteArray(uint8_t* imuByteArray, uint8_t size);
 uint8_t truncate(uint16_t value);
 int16_t floatToFixed(float value);
 float fixedToFloat(int16_t value);
@@ -91,7 +92,7 @@ void printPressureByteArray(uint8_t *byteArray)
 
     Serial.println("Bottom");
     Serial.print("[ ");
-    for (uint8_t i = 0; i < bottomSensorsCount; i++)
+    for (uint8_t i = 0; i < 2*bottomSensorsCount; i++)
     {
         Serial.printf("%d ", byteArray[i+1]);
     }
@@ -99,9 +100,9 @@ void printPressureByteArray(uint8_t *byteArray)
 
     Serial.println("Top");
     Serial.print("[ ");
-    for (uint8_t i = 0; i < topSensorsCount; i++)
+    for (uint8_t i = 0; i < 2*topSensorsCount; i++)
     {
-        Serial.printf("%d ", byteArray[i + bottomSensorsCount + 1]);
+        Serial.printf("%d ", byteArray[i + 2*bottomSensorsCount + 1]);
     }
     Serial.println("]");
 
@@ -109,11 +110,22 @@ void printPressureByteArray(uint8_t *byteArray)
     Serial.print("[ ");
     for (uint8_t i = 0; i < 4; i++)
     {
-        Serial.printf("%d ", byteArray[i + bottomSensorsCount + topSensorsCount + 1]);
+        Serial.printf("%d ", byteArray[i + 2*bottomSensorsCount + 2*topSensorsCount + 1]);
     }
     Serial.println("]");
 
 }
+
+void printIMUByteArray(uint8_t *imuByteArray, uint8_t size)
+{
+    Serial.printf("[ ");
+    for (uint8_t i = 0; i < size; i++)
+    {
+        Serial.printf("%d ", imuByteArray[i]);
+    }
+    Serial.println("]");    
+}
+
 
 void printByteArray(uint8_t *byteArray)
 {

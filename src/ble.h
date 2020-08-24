@@ -27,7 +27,7 @@ unsigned char sensorConfiguration = 0;
 unsigned short accelGyroSampleRate = 64;
 unsigned short pressureSensorSampleRate = 64;
 unsigned short magSampleRate = 64;
-uint8_t mtuValue = 30;
+uint8_t mtuValue = 50;
 bool start = true;
 
 BLEServer *pV2Server;
