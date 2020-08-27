@@ -11,29 +11,41 @@
 #define ACC_SIZE 12
 #define GYRO_SIZE 12
 #define MAG_SIZE 12
-#define IMU_SIZE 41
+#define QUAT_SIZE 16
+#define IMU_SIZE 57
 
 // MARK: - MPU9250 variables
 MPU9250_DMP imu;
 
 uint8_t accByteArray[ACC_SIZE];
 uint8_t gyroByteArray[GYRO_SIZE];
-uint8_t magByteArray[MAG_SIZE]; 
+uint8_t magByteArray[MAG_SIZE];
+uint8_t quatByteArray[QUAT_SIZE];
 uint8_t imuByteArray[IMU_SIZE];
+
+float accelX = 0;
+float accelY = 0;
+float accelZ = 0;
+float gyroX = 0;
+float gyroY = 0;
+float gyroZ = 0;
+float magX = 0;
+float magY = 0;
+float magZ = 0;
 
 void setupMPU9250();
 
 void setIMUData()
 {
-    float accelX = imu.calcAccel(imu.ax);
-    float accelY = imu.calcAccel(imu.ay);
-    float accelZ = imu.calcAccel(imu.az);
-    float gyroX = imu.calcGyro(imu.gx);
-    float gyroY = imu.calcGyro(imu.gy);
-    float gyroZ = imu.calcGyro(imu.gz);
-    float magX = imu.calcMag(imu.mx);
-    float magY = imu.calcMag(imu.my);
-    float magZ = imu.calcMag(imu.mz);
+    accelX = imu.calcAccel(imu.ax);
+    accelY = imu.calcAccel(imu.ay);
+    accelZ = imu.calcAccel(imu.az);
+    gyroX = imu.calcGyro(imu.gx);
+    gyroY = imu.calcGyro(imu.gy);
+    gyroZ = imu.calcGyro(imu.gz);
+    magX = imu.calcMag(imu.mx);
+    magY = imu.calcMag(imu.my);
+    magZ = imu.calcMag(imu.mz);
 
     MEMCPY(&accByteArray[0], &accelX, sizeof(accelX));
     MEMCPY(&accByteArray[4], &accelY, sizeof(accelY));

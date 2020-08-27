@@ -24,10 +24,10 @@ unsigned char imuSensors = UPDATE_ACCEL | UPDATE_GYRO | UPDATE_COMPASS;
 unsigned char imuBitConfiguration = 0;
 unsigned char pressureBitConfiguration = 0;
 unsigned char sensorConfiguration = 0;
-unsigned short accelGyroSampleRate = 64;
+unsigned short accelGyroSampleRate = 500;
 unsigned short pressureSensorSampleRate = 64;
 unsigned short magSampleRate = 64;
-uint8_t mtuValue = 50;
+uint8_t mtuValue = 61;
 bool start = true;
 
 BLEServer *pV2Server;
@@ -157,13 +157,13 @@ unsigned short resolveIMUSampleRate(uint8_t sampleRate, bool accelGyro)
     switch (sampleRate) 
     {
         case 1:
-            return accelGyro ? 50 : 25;
+            return accelGyro ? 500 : 10;
         case 2:
-            return accelGyro ? 250 : 50;
+            return accelGyro ? 750 : 50;
         case 3:
-            return accelGyro ? 500 : 100;
+            return accelGyro ? 1000 : 100;
         default: 
-            return accelGyro ? 10 : 10;
+            return accelGyro ? 500 : 10;
     }
 }
 

@@ -5,6 +5,7 @@
 #include "ble.h"
 #include <pthread.h>
 #include <FreeRTOS.h>
+#include "madgwick.h"
 
 // MARK: - Defines
 
@@ -35,6 +36,7 @@ void setupSensorArrays()
     initByteArray(accByteArray, ACC_SIZE*sizeof(uint8_t));
     initByteArray(gyroByteArray, GYRO_SIZE*sizeof(uint8_t));
     initByteArray(magByteArray, MAG_SIZE*sizeof(uint8_t));
+    initByteArray(quatByteArray, QUAT_SIZE*sizeof(uint8_t));
 }
 
 void sensorMuxLoopCode(void *pvParameters)
@@ -146,13 +148,25 @@ void mpu9250DMPLoopCode(void *pvParameters)
                 {
                     imuCurrentTime = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS) - imuTimeStart;
                     MEMCPY(&imuByteArray[i+1], &imuCurrentTime, sizeof(uint32_t));
+                    deltat = imuCurrentTime / 1000.0f;
+                    MadgwickQuaternionUpdate(-accelX, accelY, accelZ, gyroX*PI/180.0f, -gyroY*PI/180.0f, -gyroZ*PI/180.0f,  magY,  -magX, magZ);
                 }
 
-                uint8_t byteCount = ACC_SIZE * imuSensorCount + 5; // 3 imu sensors (a, g, m) * 2 bytes per axis * 3 axes per sensor + 1 configuration byte + 4 time stamp bytes
+                uint8_t byteCount = ACC_SIZE * imuSensorCount + 5;
+                if (imuSensorCount == 3) // calculate quaternion
+                {
+                    byteCount = byteCount + QUAT_SIZE;
+                    for (uint8_t q_i = 0; q_i < 4; q_i++)
+                    {
+                        MEMCPY(&imuByteArray[i+1+q_i*4], &q[q_i], sizeof(q[q_i]));
+                    }
+                }
+
                 pDataCharacteristic->setValue((uint8_t*)imuByteArray, byteCount * sizeof(uint8_t));
                 pDataCharacteristic->notify();
 
                 #ifdef DEBUG_BLE_MPU_9250
+                    printQuatArray(q, 4);
                     printIMUByteArray(imuByteArray, byteCount);
                 #endif
             }
@@ -164,7 +178,7 @@ void mpu9250DMPLoopCode(void *pvParameters)
             imuTimeStart = 0;
         }
         
-        vTaskDelay(accelGyroSampleRate / portTICK_PERIOD_MS);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
 
