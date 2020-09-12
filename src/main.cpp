@@ -24,52 +24,51 @@ TaskHandle_t hapticsTask;
 bool imuHasBegunTimer = false;
 uint32_t imuTimeStart = 0;
 uint32_t imuCurrentTime = 0;
+uint32_t Now = 0;
+uint32_t lastUpdate = 0; 
+uint32_t firstUpdate = 0;
 
 bool pressureHasBegunTimer = false;
 uint32_t pressureTimeStart = 0;
 uint32_t pressureCurrentTime = 0;
 
+void setupIMUTest();
+
 void setupSensorArrays() 
 {
-    initByteArray(muxByteArray, PRESSURE_SIZE*sizeof(uint8_t));
-    initByteArray(imuByteArray, IMU_SIZE*sizeof(uint8_t));
-    initByteArray(accByteArray, ACC_SIZE*sizeof(uint8_t));
-    initByteArray(gyroByteArray, GYRO_SIZE*sizeof(uint8_t));
-    initByteArray(magByteArray, MAG_SIZE*sizeof(uint8_t));
-    initByteArray(quatByteArray, QUAT_SIZE*sizeof(uint8_t));
+    initByteArray(muxByteArray, (PRESSURE_SIZE+4)*sizeof(uint8_t));
+    initByteArray(accByteArray, (ACC_SIZE+4)*sizeof(uint8_t));
+    initByteArray(gyroByteArray, (GYRO_SIZE+4)*sizeof(uint8_t));
+    initByteArray(quatByteArray, (QUAT_SIZE+4)*sizeof(uint8_t));
 }
 
 void sensorMuxLoopCode(void *pvParameters)
 {
     while(1)
     {
-        if (deviceConnected && pressureSensorsConnected)
+        if (deviceConnected && pressureOn)
         {
-            muxByteArray[0] = pressureBitConfiguration;
             for (uint8_t i = 0; i < sensorsCount; i++)
             {
-                uint16_t value = readMux(i);
-                MEMCPY(&muxByteArray[2*i + 1], &value, sizeof(uint16_t));
+                muxByteArray[i] = truncate(readMux(i));
             }
 
             if (!pressureHasBegunTimer)
             {
                 pressureHasBegunTimer = true;
                 pressureTimeStart = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
-                MEMCPY(&muxByteArray[2*sensorsCount + 1], &pressureCurrentTime, sizeof(uint32_t));
             } 
             else 
             {
                 pressureCurrentTime = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS) - pressureTimeStart;
-                MEMCPY(&muxByteArray[2*sensorsCount + 1], &pressureCurrentTime, sizeof(uint32_t));
             }
 
-            uint8_t byteCount = 2*sensorsCount + 5; // 16 sensors + 1 configuration + 4 time stamp bytes
-            pDataCharacteristic->setValue((uint8_t *)muxByteArray, byteCount * sizeof(uint8_t));
-            pDataCharacteristic->notify();
+            MEMCPY(&muxByteArray[PRESSURE_SIZE], &pressureCurrentTime, sizeof(uint32_t));
+            pPressureDataCharacteristic->setValue((uint8_t *)muxByteArray, (PRESSURE_SIZE) * sizeof(uint8_t));
+            pPressureDataCharacteristic->notify();
             
             #ifdef DEBUG_BLE_SENSORS
-                printPressureByteArray(muxByteArray); 
+                // printPressureByteArray(muxByteArray); 
             #endif
         }
         else
@@ -79,7 +78,7 @@ void sensorMuxLoopCode(void *pvParameters)
             pressureTimeStart = 0;
         }
 
-        vTaskDelay(pressureSensorSampleRate / portTICK_PERIOD_MS);
+        vTaskDelay(50 / portTICK_PERIOD_MS);
     }
 }
 
@@ -87,88 +86,56 @@ void mpu9250DMPLoopCode(void *pvParameters)
 {
     while(1)
     {
+
         if (deviceConnected && imuConnected)
         {
-            if (imu.dataReady())
+
+            // Check for new data in the FIFO
+            if ( imu.fifoAvailable())
             {
-                imu.update(imuSensors);
-                setIMUData();
+                // Use dmpUpdateFifo to update the ax, gx, mx, etc. values
+                if ( imu.dmpUpdateFifo() == INV_SUCCESS)
+                {
+                    setIMUData();
 
-                uint8_t i = 0;
-                uint8_t a_i = 0;
-                uint8_t g_i = 0;
-                uint8_t m_i = 0;
-                bool imuToggle[3] = {false, false, false};
-
-                imuByteArray[0] = (uint8_t)sensorConfiguration;
-                uint8_t imuSensorCount = 0;
-                if ((sensorConfiguration >> 5) & 0x1)
-                {
-                    imuSensorCount++;
-                    imuToggle[0] = true;
-                }
-                if ((sensorConfiguration >> 6) & 0x1)
-                {
-                    imuSensorCount++;
-                    imuToggle[1] = true;
-                }
-                if ((sensorConfiguration >> 7) & 0x1)
-                {
-                    imuSensorCount++;
-                    imuToggle[2] = true;
-                }
-
-                while(i < ACC_SIZE * imuSensorCount) // 3 imu sensors (a, g, m) * 4 bytes per axis * 3 axes per sensor
-                {
-                    if (imuToggle[0] && a_i < ACC_SIZE)
-                    {                  
-                        imuByteArray[i+1] = accByteArray[a_i];
-                        a_i++;
-                    }
-                    else if (imuToggle[1] && g_i < GYRO_SIZE)
+                    if (!imuHasBegunTimer)
                     {
-                        imuByteArray[i+1] = gyroByteArray[g_i];
-                        g_i++;
-                    }
-                    else if (imuToggle[2] && m_i < MAG_SIZE)
+                        imuHasBegunTimer = true;
+                        imuTimeStart = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
+                    } 
+                    else 
                     {
-                        imuByteArray[i+1] = magByteArray[m_i];
-                        m_i++;
+                        imuCurrentTime = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS) - imuTimeStart;
                     }
-                    i++;
-                }
 
-                if (!imuHasBegunTimer)
-                {
-                    imuHasBegunTimer = true;
-                    imuTimeStart = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
-                    MEMCPY(&imuByteArray[i+1], &imuCurrentTime, sizeof(uint32_t));
-                } 
-                else 
-                {
-                    imuCurrentTime = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS) - imuTimeStart;
-                    MEMCPY(&imuByteArray[i+1], &imuCurrentTime, sizeof(uint32_t));
-                    deltat = imuCurrentTime / 1000.0f;
-                    MadgwickQuaternionUpdate(-accelX, accelY, accelZ, gyroX*PI/180.0f, -gyroY*PI/180.0f, -gyroZ*PI/180.0f,  magY,  -magX, magZ);
-                }
+                    if (accOn)
+                    {   
+                        
+                        MEMCPY(&accByteArray[ACC_SIZE], &imuCurrentTime, sizeof(uint32_t));
+                        pAccelerometerDataCharacteristic->setValue((uint8_t *)accByteArray, (ACC_SIZE+4)*sizeof(uint8_t));
+                        pAccelerometerDataCharacteristic->notify();
+                    }
 
-                uint8_t byteCount = ACC_SIZE * imuSensorCount + 5;
-                if (imuSensorCount == 3) // calculate quaternion
-                {
-                    byteCount = byteCount + QUAT_SIZE;
-                    for (uint8_t q_i = 0; q_i < 4; q_i++)
+                    if (gyroOn)
+                    {  
+                        MEMCPY(&gyroByteArray[GYRO_SIZE], &imuCurrentTime, sizeof(uint32_t));
+                        pGyroscopeDataCharacteristic->setValue((uint8_t *)gyroByteArray, (GYRO_SIZE+4)*sizeof(uint8_t));
+                        pGyroscopeDataCharacteristic->notify();
+                    }
+
+                    if (quatOn)
                     {
-                        MEMCPY(&imuByteArray[i+1+q_i*4], &q[q_i], sizeof(q[q_i]));
+                        MEMCPY(&quatByteArray[QUAT_SIZE], &imuCurrentTime, sizeof(uint32_t));
+                        pQuaternionDataCharacteristic->setValue((uint8_t *)quatByteArray, (QUAT_SIZE+4)*sizeof(uint8_t));
+                        pQuaternionDataCharacteristic->notify();
                     }
+
+                    #ifdef DEBUG_BLE_MPU_9250
+                        // Serial.printf("[%f, %f, %f, %f]\n", q0, q1, q2, q3);
+                        // printIMUByteArray(imuByteArray, ACC_SIZE*3 + QUAT_SIZE + 4 + 1);
+
+                    #endif
                 }
-
-                pDataCharacteristic->setValue((uint8_t*)imuByteArray, byteCount * sizeof(uint8_t));
-                pDataCharacteristic->notify();
-
-                #ifdef DEBUG_BLE_MPU_9250
-                    printQuatArray(q, 4);
-                    printIMUByteArray(imuByteArray, byteCount);
-                #endif
             }
         }
         else
@@ -178,7 +145,7 @@ void mpu9250DMPLoopCode(void *pvParameters)
             imuTimeStart = 0;
         }
         
-        vTaskDelay(100 / portTICK_PERIOD_MS);
+        delay(10);
     }
 }
 
@@ -190,10 +157,9 @@ void setup()
     setupMux();
     setupHaptics();
     
-    xTaskCreatePinnedToCore(sensorMuxLoopCode, "sensorMuxLoop", 4096, NULL, 1, &sensorMuxTask, 0);
+    // xTaskCreatePinnedToCore(sensorMuxLoopCode, "sensorMuxLoop", 4096, NULL, 1, &sensorMuxTask, 0);
     xTaskCreatePinnedToCore(mpu9250DMPLoopCode, "imuLoop", 4096, NULL, 1, &imuTask, 0);
 }
 
 void loop() {
-    vTaskDelay(10);
 }

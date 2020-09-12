@@ -1,8 +1,8 @@
 
 // MARK: - Defines
-#define IS_RIGHT
+#define IS_LEFT
 #define DEBUG_BLE_SENSORS
-#define PRESSURE_SIZE 37
+#define PRESSURE_SIZE 16
 #define TOP_SIZE 20
 #define BOTTOM_SIZE 12
 
